@@ -92,6 +92,53 @@
             color: #999;
         }
 
+        .btn-group {
+            display: flex;
+            gap: .4rem;
+        }
+
+        .edit-btn {
+            background: #f0ad4e;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: .3rem .7rem;
+            cursor: pointer;
+            font-size: .85rem;
+        }
+
+        .edit-btn:hover {
+            background: #ec971f;
+        }
+
+        .save-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: .3rem .7rem;
+            cursor: pointer;
+            font-size: .85rem;
+        }
+
+        .save-btn:hover {
+            background: #218838;
+        }
+
+        .cancel-btn {
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: .3rem .7rem;
+            cursor: pointer;
+            font-size: .85rem;
+        }
+
+        .cancel-btn:hover {
+            background: #5a6268;
+        }
+
         .delete-btn {
             background: #e53e3e;
             color: white;
@@ -104,6 +151,14 @@
 
         .delete-btn:hover {
             background: #c0392b;
+        }
+
+        .edit-input {
+            flex: 1;
+            padding: .3rem .6rem;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 1rem;
         }
     </style>
 </head>
@@ -119,22 +174,52 @@
     </div>
     <script>
         const API = 'http://localhost:3001/api';
+        let currentTodos = [];
+        let editingId = null;
 
         async function fetchTodos() {
             const res = await fetch(`${API}/todos`);
-            const data = await res.json();
-            renderTodos(data);
+            currentTodos = await res.json();
+            renderTodos(currentTodos);
         }
 
         function renderTodos(todos) {
             const list = document.getElementById('todo-list');
-            if (todos.length === 0) { list.innerHTML = '<p style="color:#999">ยังไม่มีงาน</p>'; return; }
-            list.innerHTML = todos.map(t => `
-        <div class="todo-item">
-          <input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTodo(${t.id})" />
-          <span class="todo-title ${t.completed ? 'done' : ''}">${t.title}</span>
-          <button class="delete-btn" onclick="deleteTodo(${t.id})">ลบ</button>
-        </div>`).join('');
+            if (todos.length === 0) {
+                list.innerHTML = '<p style="color:#999">ยังไม่มีงาน</p>';
+                return;
+            }
+            list.innerHTML = todos.map(t => {
+                const isEditing = t.id === editingId;
+                return `
+                <div class="todo-item" id="todo-${t.id}">
+                    <input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTodo(${t.id})" ${isEditing ? 'disabled' : ''} />
+                    ${isEditing
+                        ? `<input type="text" class="edit-input" id="edit-input-${t.id}" value="${t.title}" onkeydown="handleEditKey(event, ${t.id})" />`
+                        : `<span class="todo-title ${t.completed ? 'done' : ''}">${t.title}</span>`
+                    }
+                    <div class="btn-group">
+                        ${isEditing
+                        ? `
+                            <button class="save-btn" onclick="saveTodo(${t.id})">บันทึก</button>
+                            <button class="cancel-btn" onclick="cancelEdit()">ยกเลิก</button>
+                            `
+                        : `
+                            <button class="edit-btn" onclick="startEdit(${t.id})">แก้ไข</button>
+                            <button class="delete-btn" onclick="deleteTodo(${t.id})">ลบ</button>
+                            `
+                    }
+                    </div>
+                </div>`;
+            }).join('');
+
+            if (editingId !== null) {
+                const input = document.getElementById(`edit-input-${editingId}`);
+                if (input) {
+                    input.focus();
+                    input.select();
+                }
+            }
         }
 
         async function addTodo() {
@@ -150,6 +235,37 @@
             fetchTodos();
         }
 
+        function startEdit(id) {
+            editingId = id;
+            renderTodos(currentTodos);
+        }
+
+        function cancelEdit() {
+            editingId = null;
+            renderTodos(currentTodos);
+        }
+
+        async function saveTodo(id) {
+            const input = document.getElementById(`edit-input-${id}`);
+            const title = input.value.trim();
+            if (!title) return;
+            await fetch(`${API}/todos/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title })
+            });
+            editingId = null;
+            fetchTodos();
+        }
+
+        function handleEditKey(e, id) {
+            if (e.key === 'Enter') {
+                saveTodo(id);
+            } else if (e.key === 'Escape') {
+                cancelEdit();
+            }
+        }
+
         async function toggleTodo(id) {
             await fetch(`${API}/todos/${id}`, { method: 'PATCH' });
             fetchTodos();
@@ -161,7 +277,9 @@
             fetchTodos();
         }
 
-        document.getElementById('new-todo').addEventListener('keydown', e => { if (e.key === 'Enter') addTodo(); });
+        document.getElementById('new-todo').addEventListener('keydown', e => {
+            if (e.key === 'Enter') addTodo();
+        });
         fetchTodos();
     </script>
 </body>
